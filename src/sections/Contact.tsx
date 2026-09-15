@@ -1,8 +1,8 @@
 import { useState, type FormEvent } from 'react';
-import { Github, Linkedin, Mail, Instagram, Send } from 'lucide-react';
+import { Github, Linkedin, Mail, Instagram, Send, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { GlassCard } from '../components/GlassCard';
 import { MagneticButton } from '../components/MagneticButton';
-import { socialLinks } from '../data/portfolio';
+import { personal, socialLinks } from '../data/portfolio';
 
 const ICONS: Record<string, typeof Github> = {
   github: Github,
@@ -11,18 +11,56 @@ const ICONS: Record<string, typeof Github> = {
   instagram: Instagram,
 };
 
-type FormStatus = 'idle' | 'not-configured';
+type FormStatus = 'idle' | 'submitting' | 'success' | 'error';
 
 export function Contact() {
   const [status, setStatus] = useState<FormStatus>('idle');
+  const [errorMessage, setErrorMessage] = useState('');
   const [values, setValues] = useState({ name: '', email: '', message: '' });
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    // No backend/email service is wired up yet. This intentionally does not
-    // pretend to send anything — see the README for how to connect one
-    // (e.g. Formspree, Resend, or your own API route) and replace this handler.
-    setStatus('not-configured');
+
+    if (!values.name.trim() || !values.email.trim() || !values.message.trim()) {
+      setStatus('error');
+      setErrorMessage('Please fill in all fields before sending.');
+      return;
+    }
+
+    setStatus('submitting');
+    setErrorMessage('');
+
+    try {
+      const response = await fetch(`https://formsubmit.co/ajax/${encodeURIComponent(personal.email)}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({
+          name: values.name.trim(),
+          email: values.email.trim(),
+          message: values.message.trim(),
+          _subject: `New Portfolio Message from ${values.name.trim()}`,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && (data.success === 'true' || data.success === true || response.status === 200)) {
+        setStatus('success');
+        setValues({ name: '', email: '', message: '' });
+      } else {
+        throw new Error(data.message || 'Submission failed');
+      }
+    } catch (err: any) {
+      setStatus('error');
+      setErrorMessage(
+        err?.message && !err.message.includes('object')
+          ? err.message
+          : 'Could not send message automatically. Please reach out directly at ' + personal.email
+      );
+    }
   };
 
   return (
@@ -37,62 +75,98 @@ export function Contact() {
 
         <div className="mt-12 grid grid-cols-1 md:grid-cols-5 gap-6">
           <GlassCard className="p-7 md:col-span-3" tiltStrength={2}>
-            <form onSubmit={handleSubmit} className="flex flex-col gap-4" noValidate>
-              <div>
-                <label htmlFor="name" className="text-xs text-white/50">
-                  Name
-                </label>
-                <input
-                  id="name"
-                  required
-                  value={values.name}
-                  onChange={(e) => setValues((v) => ({ ...v, name: e.target.value }))}
-                  className="mt-1 w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-white/30 focus:border-signal-cyan/60 outline-none transition-colors"
-                  placeholder="Your name"
-                />
+            {status === 'success' ? (
+              <div className="flex flex-col items-center text-center py-8 gap-4">
+                <div className="w-14 h-14 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                  <CheckCircle2 size={28} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-white">Message Sent!</h3>
+                  <p className="text-sm text-white/60 mt-1 max-w-sm">
+                    Thank you for reaching out. I've received your message and will get back to you as soon as possible.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setStatus('idle')}
+                  className="mt-2 text-xs text-signal-cyan hover:underline transition-colors cursor-pointer"
+                >
+                  Send another message
+                </button>
               </div>
-              <div>
-                <label htmlFor="email" className="text-xs text-white/50">
-                  Email
-                </label>
-                <input
-                  id="email"
-                  type="email"
-                  required
-                  value={values.email}
-                  onChange={(e) => setValues((v) => ({ ...v, email: e.target.value }))}
-                  className="mt-1 w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-white/30 focus:border-signal-cyan/60 outline-none transition-colors"
-                  placeholder="you@example.com"
-                />
-              </div>
-              <div>
-                <label htmlFor="message" className="text-xs text-white/50">
-                  Message
-                </label>
-                <textarea
-                  id="message"
-                  required
-                  rows={4}
-                  value={values.message}
-                  onChange={(e) => setValues((v) => ({ ...v, message: e.target.value }))}
-                  className="mt-1 w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-white/30 focus:border-signal-cyan/60 outline-none transition-colors resize-none"
-                  placeholder="Tell me about your idea or opportunity"
-                />
-              </div>
+            ) : (
+              <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+                <div>
+                  <label htmlFor="name" className="text-xs text-white/50">
+                    Name
+                  </label>
+                  <input
+                    id="name"
+                    required
+                    disabled={status === 'submitting'}
+                    value={values.name}
+                    onChange={(e) => setValues((v) => ({ ...v, name: e.target.value }))}
+                    className="mt-1 w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-white/30 focus:border-signal-cyan/60 outline-none transition-colors disabled:opacity-50"
+                    placeholder="Your name"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="email" className="text-xs text-white/50">
+                    Email
+                  </label>
+                  <input
+                    id="email"
+                    type="email"
+                    required
+                    disabled={status === 'submitting'}
+                    value={values.email}
+                    onChange={(e) => setValues((v) => ({ ...v, email: e.target.value }))}
+                    className="mt-1 w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-white/30 focus:border-signal-cyan/60 outline-none transition-colors disabled:opacity-50"
+                    placeholder="you@example.com"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="message" className="text-xs text-white/50">
+                    Message
+                  </label>
+                  <textarea
+                    id="message"
+                    required
+                    rows={4}
+                    disabled={status === 'submitting'}
+                    value={values.message}
+                    onChange={(e) => setValues((v) => ({ ...v, message: e.target.value }))}
+                    className="mt-1 w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-white/30 focus:border-signal-cyan/60 outline-none transition-colors resize-none disabled:opacity-50"
+                    placeholder="Tell me about your idea or opportunity"
+                  />
+                </div>
 
-              <MagneticButton className="mt-2 self-start">
-                <span className="inline-flex items-center gap-2">
-                  Send Message <Send size={15} />
-                </span>
-              </MagneticButton>
+                <MagneticButton
+                  type="submit"
+                  disabled={status === 'submitting'}
+                  className="mt-2 self-start"
+                >
+                  <span className="inline-flex items-center gap-2">
+                    {status === 'submitting' ? (
+                      <>
+                        <Loader2 size={15} className="animate-spin" /> Sending...
+                      </>
+                    ) : (
+                      <>
+                        Send Message <Send size={15} />
+                      </>
+                    )}
+                  </span>
+                </MagneticButton>
 
-              {status === 'not-configured' && (
-                <p role="status" className="text-xs text-white/45 mt-1">
-                  This form isn't connected to an email service yet — see the README for setup
-                  instructions (e.g. Formspree or Resend), or reach out directly using the links.
-                </p>
-              )}
-            </form>
+                {status === 'error' && (
+                  <div className="flex items-start gap-2 p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs mt-1">
+                    <AlertCircle size={16} className="shrink-0 mt-0.5" />
+                    <p>{errorMessage}</p>
+                  </div>
+                )}
+              </form>
+            )}
           </GlassCard>
 
           <div className="md:col-span-2 flex flex-col gap-3">

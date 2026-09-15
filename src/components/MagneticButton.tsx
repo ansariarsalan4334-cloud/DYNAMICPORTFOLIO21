@@ -8,6 +8,8 @@ type MagneticButtonProps = {
   variant?: 'primary' | 'ghost';
   className?: string;
   ariaLabel?: string;
+  type?: 'button' | 'submit' | 'reset';
+  disabled?: boolean;
 };
 
 export function MagneticButton({
@@ -17,6 +19,8 @@ export function MagneticButton({
   variant = 'primary',
   className = '',
   ariaLabel,
+  type,
+  disabled,
 }: MagneticButtonProps) {
   const ref = useRef<HTMLAnchorElement & HTMLButtonElement>(null);
 
@@ -60,7 +64,14 @@ export function MagneticButton({
   }
 
   return (
-    <button ref={ref as any} onClick={onClick} className={classes} aria-label={ariaLabel}>
+    <button
+      ref={ref as any}
+      type={type ?? 'button'}
+      disabled={disabled}
+      onClick={onClick}
+      className={`${classes} ${disabled ? 'opacity-60 cursor-not-allowed pointer-events-none' : ''}`}
+      aria-label={ariaLabel}
+    >
       {children}
     </button>
   );
